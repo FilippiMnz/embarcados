@@ -22,13 +22,15 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-const char* DEFAULT_SSID = "**********";
-const char* DEFAULT_PASSWORD = "***********";
+const char* DEFAULT_SSID = "Filippi";
+const char* DEFAULT_PASSWORD = "compiuter";
 const char* asciiChars = " .,-:;=!*#$@#&%$@";
+//const char* asciiChars = "@$%&#@$#*!=;:-,. ";
 const int EEPROM_SIZE = 512;
 const int SSID_ADDR = 0;
 const int PASS_ADDR = 64;
 const int MAX_CRED_LENGTH = 63;
+
 
 WebServer server(80);
 
@@ -58,7 +60,7 @@ void setupWebServer();
 void handleSerialCommands();
 
 void setupCamera() {
-  camera_config_t config;
+  camera_config_t config; 
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
   config.pin_d0 = Y2_GPIO_NUM;
@@ -92,7 +94,7 @@ void setupCamera() {
   sensor_t *s = esp_camera_sensor_get();
   s->set_contrast(s, 2);
   s->set_brightness(s, 0);
-  s->set_vflip(s, 1); 
+  s->set_vflip(s, 1);  //girar
 }
 
 void initStorage() {
@@ -167,27 +169,39 @@ void saveWiFiCredentials(String ssid, String password) {
   }
 }
 
+
 void connectToWiFi() {
   if (wifiSSID.length() == 0) loadWiFiCredentials();
 
+  Serial.print("Tentando conectar à rede salva: ");
+  Serial.println(wifiSSID);
   WiFi.begin(wifiSSID.c_str(), wifiPassword.c_str());
-  Serial.print("Conectando ao WiFi ");
-  Serial.print(wifiSSID);
-  Serial.print("...");
   
   unsigned long startTime = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - startTime < 20000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - startTime < 20000) { // 20 segundos de tentativa
     delay(500);
     Serial.print(".");
   }
-  
+
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nFalha na conexão WiFi!");
-    Serial.println("Verifique as credenciais e reinicie.");
-    return;
+    Serial.println("\nFalha na rede salva! Tentando rede padrão...");
+    WiFi.begin(DEFAULT_SSID, DEFAULT_PASSWORD);
+    
+    startTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startTime < 20000) {
+      delay(500);
+      Serial.print(".");
+    }
   }
-  
-  Serial.println("\nConectado! IP: " + WiFi.localIP().toString());
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nTodas as redes falharam! Iniciando Access Point...");
+    WiFi.softAP("ESP32-CAM", NULL); // Rede aberta
+    Serial.print("Access Point criado! Conecte-se a: ESP32-CAM\nIP: ");
+    Serial.println(WiFi.softAPIP());
+  } else {
+    Serial.println("\nConectado! IP: " + WiFi.localIP().toString());
+  }
 }
 
 void generateAsciiOutput(camera_fb_t *fb, bool serialOutput) {
@@ -394,6 +408,10 @@ void handleSerialCommands() {
       gamma_correction = command.substring(6).toInt();
       gamma_correction = constrain(gamma_correction, 0, 100);
       Serial.println("Gamma ajustado para: " + String(gamma_correction));
+    }
+    else if (command == "usepadrao") {
+      WiFi.begin(DEFAULT_SSID, DEFAULT_PASSWORD);
+      Serial.println("Conectando à rede padrão...");
     }
     else {
       Serial.println("Comando desconhecido. Comandos disponíveis:");
